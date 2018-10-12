@@ -44,24 +44,6 @@ namespace
 {
 using Monitor = SharedMonitor<SharedRegionRegister>;
 
-void readBlocks(const boost::filesystem::path &path, std::unique_ptr<DataLayout> &layout)
-{
-    tar::FileReader reader(path, tar::FileReader::VerifyFingerprint);
-
-    std::vector<tar::FileReader::FileEntry> entries;
-    reader.List(std::back_inserter(entries));
-
-    for (const auto &entry : entries)
-    {
-        const auto name_end = entry.name.rfind(".meta");
-        if (name_end == std::string::npos)
-        {
-            auto number_of_elements = reader.ReadElementCount64(entry.name);
-            layout->SetBlock(entry.name, Block{number_of_elements, entry.size});
-        }
-    }
-}
-
 struct RegionHandle
 {
     std::unique_ptr<SharedMemory> memory;
@@ -69,7 +51,8 @@ struct RegionHandle
     std::uint16_t shm_key;
 };
 
-auto setupRegion(SharedRegionRegister &shared_register, const std::unique_ptr<DataLayout> &layout)
+auto setupRegion(SharedRegionRegister &shared_register,
+                 const std::unique_ptr<storage::BaseDataLayout> &layout)
 {
     // This is safe because we have an exclusive lock for all osrm-datastore processes.
     auto shm_key = shared_register.ReserveKey();
@@ -186,6 +169,25 @@ bool swapData(Monitor &monitor,
 
 Storage::Storage(StorageConfig config_) : config(std::move(config_)) {}
 
+void Storage::readBlocks(const boost::filesystem::path &path,
+                         std::unique_ptr<storage::BaseDataLayout> &layout)
+{
+    tar::FileReader reader(path, tar::FileReader::VerifyFingerprint);
+
+    std::vector<tar::FileReader::FileEntry> entries;
+    reader.List(std::back_inserter(entries));
+
+    for (const auto &entry : entries)
+    {
+        const auto name_end = entry.name.rfind(".meta");
+        if (name_end == std::string::npos)
+        {
+            auto number_of_elements = reader.ReadElementCount64(entry.name);
+            layout->SetBlock(entry.name, Block{number_of_elements, entry.size, entry.offset});
+        }
+    }
+}
+
 int Storage::Run(int max_wait, const std::string &dataset_name, bool only_metric)
 {
     BOOST_ASSERT_MSG(config.IsValid(), "Invalid storage config");
@@ -243,7 +245,8 @@ int Storage::Run(int max_wait, const std::string &dataset_name, bool only_metric
         auto static_region = shared_register.GetRegion(region_id);
         auto static_memory = makeSharedMemory(static_region.shm_key);
 
-        std::unique_ptr<DataLayout> static_layout;
+        std::unique_ptr<storage::BaseDataLayout> static_layout =
+            std::make_unique<storage::DataLayout>();
         io::BufferReader reader(reinterpret_cast<char *>(static_memory->Ptr()),
                                 static_memory->Size());
         serialization::read(reader, static_layout);
@@ -255,14 +258,16 @@ int Storage::Run(int max_wait, const std::string &dataset_name, bool only_metric
     }
     else
     {
-        std::unique_ptr<DataLayout> static_layout;
+        std::unique_ptr<storage::BaseDataLayout> static_layout =
+            std::make_unique<storage::DataLayout>();
         PopulateStaticLayout(static_layout);
         auto static_handle = setupRegion(shared_register, static_layout);
         regions.push_back({static_handle.data_ptr, std::move(static_layout)});
         handles[dataset_name + "/static"] = std::move(static_handle);
     }
 
-    std::unique_ptr<DataLayout> updatable_layout;
+    std::unique_ptr<storage::BaseDataLayout> updatable_layout =
+        std::make_unique<storage::DataLayout>();
     PopulateUpdatableLayout(updatable_layout);
     auto updatable_handle = setupRegion(shared_register, updatable_layout);
     regions.push_back({updatable_handle.data_ptr, std::move(updatable_layout)});
@@ -284,9 +289,9 @@ int Storage::Run(int max_wait, const std::string &dataset_name, bool only_metric
 /**
  * This function examines all our data files and figures out how much
  * memory needs to be allocated, and the position of each data structure
- * in that big block.  It updates the fields in the std::unique_ptr<DataLayout> parameter.
+ * in that big block.  It updates the fields in the std::unique_ptr<BaseDataLayout> parameter.
  */
-void Storage::PopulateStaticLayout(std::unique_ptr<DataLayout> &static_layout)
+void Storage::PopulateStaticLayout(std::unique_ptr<storage::BaseDataLayout> &static_layout)
 {
     {
         auto absolute_file_index_path =
@@ -298,7 +303,9 @@ void Storage::PopulateStaticLayout(std::unique_ptr<DataLayout> &static_layout)
 
     constexpr bool REQUIRED = true;
 
-    std::vector<std::pair<bool, boost::filesystem::path>> tar_files = Storage::GetStaticFiles();
+    std::vector<std::pair<bool, boost::filesystem::path>> tar_files;
+    Storage::GetStaticFiles(&tar_files);
+
     for (const auto &file : tar_files)
     {
         if (boost::filesystem::exists(file.second))
@@ -316,31 +323,31 @@ void Storage::PopulateStaticLayout(std::unique_ptr<DataLayout> &static_layout)
     }
 }
 
-std::vector<std::pair<bool, boost::filesystem::path>> Storage::GetStaticFiles()
+void Storage::GetStaticFiles(std::vector<std::pair<bool, boost::filesystem::path>> *tar_files)
 {
     constexpr bool REQUIRED = true;
     constexpr bool OPTIONAL = false;
-    std::vector<std::pair<bool, boost::filesystem::path>> tar_files = {
-        {OPTIONAL, config.GetPath(".osrm.cells")},
-        {OPTIONAL, config.GetPath(".osrm.partition")},
-        {REQUIRED, config.GetPath(".osrm.icd")},
-        {REQUIRED, config.GetPath(".osrm.properties")},
-        {REQUIRED, config.GetPath(".osrm.nbg_nodes")},
-        {REQUIRED, config.GetPath(".osrm.ebg_nodes")},
-        {REQUIRED, config.GetPath(".osrm.tls")},
-        {REQUIRED, config.GetPath(".osrm.tld")},
-        {REQUIRED, config.GetPath(".osrm.maneuver_overrides")},
-        {REQUIRED, config.GetPath(".osrm.edges")},
-        {REQUIRED, config.GetPath(".osrm.names")},
-        {REQUIRED, config.GetPath(".osrm.ramIndex")},
-    };
-    return tar_files;
+
+    tar_files->emplace_back(OPTIONAL, config.GetPath(".osrm.cells"));
+    tar_files->emplace_back(OPTIONAL, config.GetPath(".osrm.partition"));
+    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.icd"));
+    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.properties"));
+    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.nbg_nodes"));
+    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.ebg_nodes"));
+    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.tls"));
+    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.tld"));
+    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.maneuver_overrides"));
+    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.edges"));
+    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.names"));
+    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.ramIndex"));
 }
 
-void Storage::PopulateUpdatableLayout(std::unique_ptr<DataLayout> &updatable_layout)
+void Storage::PopulateUpdatableLayout(std::unique_ptr<storage::BaseDataLayout> &updatable_layout)
 {
     constexpr bool REQUIRED = true;
-    std::vector<std::pair<bool, boost::filesystem::path>> tar_files = Storage::GetUpdatableFiles();
+    std::vector<std::pair<bool, boost::filesystem::path>> tar_files;
+    Storage::GetUpdatableFiles(&tar_files);
+
     for (const auto &file : tar_files)
     {
         if (boost::filesystem::exists(file.second))
@@ -358,21 +365,20 @@ void Storage::PopulateUpdatableLayout(std::unique_ptr<DataLayout> &updatable_lay
     }
 }
 
-std::vector<std::pair<bool, boost::filesystem::path>> Storage::GetUpdatableFiles()
+void Storage::GetUpdatableFiles(std::vector<std::pair<bool, boost::filesystem::path>> *tar_files)
 {
     constexpr bool REQUIRED = true;
     constexpr bool OPTIONAL = false;
-    std::vector<std::pair<bool, boost::filesystem::path>> tar_files = {
-        {OPTIONAL, config.GetPath(".osrm.mldgr")},
-        {OPTIONAL, config.GetPath(".osrm.cell_metrics")},
-        {OPTIONAL, config.GetPath(".osrm.hsgr")},
-        {REQUIRED, config.GetPath(".osrm.datasource_names")},
-        {REQUIRED, config.GetPath(".osrm.geometry")},
-        {REQUIRED, config.GetPath(".osrm.turn_weight_penalties")},
-        {REQUIRED, config.GetPath(".osrm.turn_duration_penalties")},
-    };
-    return tar_files;
+
+    tar_files->emplace_back(OPTIONAL, config.GetPath(".osrm.mldgr"));
+    tar_files->emplace_back(OPTIONAL, config.GetPath(".osrm.cell_metrics"));
+    tar_files->emplace_back(OPTIONAL, config.GetPath(".osrm.hsgr"));
+    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.datasource_names"));
+    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.geometry"));
+    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.turn_weight_penalties"));
+    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.turn_duration_penalties"));
 }
+
 void Storage::PopulateStaticData(const SharedDataIndex &index)
 {
     // read actual data into shared memory object //

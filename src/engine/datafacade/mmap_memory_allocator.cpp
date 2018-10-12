@@ -17,39 +17,14 @@ namespace engine
 namespace datafacade
 {
 
-void readBlocks(const boost::filesystem::path &path,
-                std::unique_ptr<storage::TarDataLayout> &layout)
-{
-    storage::tar::FileReader reader(path, storage::tar::FileReader::VerifyFingerprint);
-
-    std::vector<storage::tar::FileReader::FileEntry> entries;
-    reader.List(std::back_inserter(entries));
-
-    for (const auto &entry : entries)
-    {
-        const auto name_end = entry.name.rfind(".meta");
-        if (name_end == std::string::npos)
-        {
-            auto number_of_elements = reader.ReadElementCount64(entry.name);
-            std::cout << "DEBUG: name " << entry.name;
-            std::cout << " number_of_elements " << number_of_elements;
-            std::cout << " entry.size " << entry.size;
-            std::cout << " entry.offset " << entry.offset << std::endl;
-            layout->SetBlock(entry.name,
-                             storage::Block{number_of_elements, entry.size, entry.offset});
-        }
-    }
-}
-
 MMapMemoryAllocator::MMapMemoryAllocator(const storage::StorageConfig &config,
                                          const boost::filesystem::path &memory_file)
 {
     (void)memory_file; // TODO remove
     storage::Storage storage(config);
-    std::vector<std::pair<bool, boost::filesystem::path>> files = storage.GetStaticFiles();
-    std::vector<std::pair<bool, boost::filesystem::path>> updatable_files =
-        storage.GetUpdatableFiles();
-    files.insert(files.end(), updatable_files.begin(), updatable_files.end());
+    std::vector<std::pair<bool, boost::filesystem::path>> files;
+    storage.GetStaticFiles(&files);
+    storage.GetUpdatableFiles(&files);
 
     std::vector<storage::SharedDataIndex::AllocatedRegion> allocated_regions;
 
@@ -59,12 +34,12 @@ MMapMemoryAllocator::MMapMemoryAllocator(const storage::StorageConfig &config,
     {
         if (boost::filesystem::exists(file.second))
         {
-            std::unique_ptr<storage::TarDataLayout> layout =
+            std::unique_ptr<storage::BaseDataLayout> layout =
                 std::make_unique<storage::TarDataLayout>();
             boost::iostreams::mapped_file mapped_memory_file;
             util::mmapFile<char>(file.second, mapped_memory_file);
             mapped_memory_files.push_back(std::move(mapped_memory_file));
-            readBlocks(file.second, layout);
+            storage.readBlocks(file.second, layout);
             allocated_regions.push_back({mapped_memory_file.data(), std::move(layout)});
         }
         else
@@ -86,7 +61,7 @@ MMapMemoryAllocator::MMapMemoryAllocator(const storage::StorageConfig &config,
         // that's stored as a member of this allocator object
         rtree_filename = absolute_file_index_path.string();
 
-        std::unique_ptr<storage::TarDataLayout> fake_layout =
+        std::unique_ptr<storage::BaseDataLayout> fake_layout =
             std::make_unique<storage::TarDataLayout>();
 
         // Here, we hardcode the special file_index_path block name.

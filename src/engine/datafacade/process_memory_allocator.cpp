@@ -15,7 +15,7 @@ ProcessMemoryAllocator::ProcessMemoryAllocator(const storage::StorageConfig &con
     storage::Storage storage(config);
 
     // Calculate the layout/size of the memory block
-    std::unique_ptr<storage::DataLayout> layout = std::make_unique<storage::DataLayout>();
+    std::unique_ptr<storage::BaseDataLayout> layout = std::make_unique<storage::DataLayout>();
     storage.PopulateStaticLayout(layout);
     storage.PopulateUpdatableLayout(layout);
 
