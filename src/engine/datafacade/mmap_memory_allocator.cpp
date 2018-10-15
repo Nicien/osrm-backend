@@ -17,10 +17,8 @@ namespace engine
 namespace datafacade
 {
 
-MMapMemoryAllocator::MMapMemoryAllocator(const storage::StorageConfig &config,
-                                         const boost::filesystem::path &memory_file)
+MMapMemoryAllocator::MMapMemoryAllocator(const storage::StorageConfig &config)
 {
-    (void)memory_file; // TODO remove
     storage::Storage storage(config);
     std::vector<std::pair<bool, boost::filesystem::path>> files;
     storage.GetStaticFiles(&files);
