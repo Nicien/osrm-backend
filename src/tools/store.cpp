@@ -52,7 +52,7 @@ void listRegions(bool show_blocks)
             auto memory = makeSharedMemory(region.shm_key);
             io::BufferReader reader(reinterpret_cast<char *>(memory->Ptr()), memory->Size());
 
-            std::unique_ptr<DataLayout> layout;
+            std::unique_ptr<DataLayout> layout = std::make_unique<DataLayout>();
             serialization::read(reader, layout);
 
             std::vector<std::string> block_names;
@@ -215,8 +215,8 @@ bool generateDataStoreOptions(const int argc,
     return true;
 }
 
-[[noreturn]] void CleanupSharedBarriers(int signum)
-{ // Here the lock state of named mutexes is unknown, make a hard cleanup
+[[noreturn]] void CleanupSharedBarriers(
+    int signum) { // Here the lock state of named mutexes is unknown, make a hard cleanup
     removeLocks();
     std::_Exit(128 + signum);
 }

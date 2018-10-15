@@ -15,7 +15,7 @@ using namespace osrm::storage;
 
 BOOST_AUTO_TEST_CASE(layout_write_test)
 {
-    std::unique_ptr<DataLayout> layout;
+    std::unique_ptr<DataLayout> layout = std::make_unique<DataLayout>();
 
     Block block_1{20, 8 * 20};
     Block block_2{1, 4 * 1};
@@ -68,7 +68,7 @@ BOOST_AUTO_TEST_CASE(layout_write_test)
 
 BOOST_AUTO_TEST_CASE(layout_list_test)
 {
-    std::unique_ptr<DataLayout> layout;
+    std::unique_ptr<DataLayout> layout = std::make_unique<DataLayout>();
 
     Block block_1{20, 8 * 20};
     Block block_2{1, 4 * 1};
