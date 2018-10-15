@@ -195,7 +195,9 @@ template <> class vector_view<bool>
     {
         BOOST_ASSERT_MSG(index < m_size, "invalid size");
         const std::size_t bucket = index / WORD_BITS;
-        const auto offset = index % WORD_BITS;
+        // Note: ordering of bits here should match packBits in storage/serialization.hpp
+        //       so that directly mmap-ing data is possible
+        const auto offset = WORD_BITS - (index % WORD_BITS);
         return m_ptr[bucket] & (static_cast<Word>(1) << offset);
     }
 
@@ -224,7 +226,9 @@ template <> class vector_view<bool>
     {
         BOOST_ASSERT(index < m_size);
         const auto bucket = index / WORD_BITS;
-        const auto offset = index % WORD_BITS;
+        // Note: ordering of bits here should match packBits in storage/serialization.hpp
+        //       so that directly mmap-ing data is possible
+        const auto offset = WORD_BITS - (index % WORD_BITS);
         return reference{m_ptr + bucket, static_cast<Word>(1) << offset};
     }
 
@@ -263,7 +267,7 @@ struct is_view_or_vector
                                  std::is_same<util::vector_view<ValueT>, VectorT>::value>
 {
 };
-}
-}
+} // namespace util
+} // namespace osrm
 
 #endif // SHARED_MEMORY_VECTOR_WRAPPER_HPP

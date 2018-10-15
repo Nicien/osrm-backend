@@ -33,6 +33,9 @@ template <typename T, typename BlockT = unsigned char>
 inline BlockT packBits(const T &data, std::size_t index, std::size_t count)
 {
     static_assert(std::is_same<typename T::value_type, bool>::value, "value_type is not bool");
+
+    // Note: if this packing is changed, be sure to update vector_view<bool>
+    //       as well, so that on-disk and in-memory layouts match.
     BlockT value = 0;
     for (std::size_t bit = 0; bit < count; ++bit, ++index)
         value = (value << 1) | data[index];
@@ -90,7 +93,7 @@ void writeBoolVector(tar::FileWriter &writer, const std::string &name, const Vec
         boost::make_function_input_iterator(encode_function, boost::infinite()),
         number_of_blocks);
 }
-}
+} // namespace detail
 
 /* All vector formats here use the same on-disk format.
  * This is important because we want to be able to write from a vector
@@ -275,8 +278,8 @@ inline void write(io::BufferWriter &writer, const std::unique_ptr<DataLayout> &l
 {
     write(writer, layout->blocks);
 }
-}
-}
-}
+} // namespace serialization
+} // namespace storage
+} // namespace osrm
 
 #endif
