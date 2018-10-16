@@ -286,6 +286,84 @@ int Storage::Run(int max_wait, const std::string &dataset_name, bool only_metric
     return EXIT_SUCCESS;
 }
 
+void Storage::GetStaticFiles(std::vector<std::pair<bool, boost::filesystem::path>> *files)
+{
+    constexpr bool REQUIRED = true;
+    constexpr bool OPTIONAL = false;
+
+    files->emplace_back(OPTIONAL, config.GetPath(".osrm.cells"));
+    files->emplace_back(OPTIONAL, config.GetPath(".osrm.partition"));
+    files->emplace_back(REQUIRED, config.GetPath(".osrm.icd"));
+    files->emplace_back(REQUIRED, config.GetPath(".osrm.properties"));
+    files->emplace_back(REQUIRED, config.GetPath(".osrm.nbg_nodes"));
+    files->emplace_back(REQUIRED, config.GetPath(".osrm.ebg_nodes"));
+    files->emplace_back(REQUIRED, config.GetPath(".osrm.tls"));
+    files->emplace_back(REQUIRED, config.GetPath(".osrm.tld"));
+    files->emplace_back(REQUIRED, config.GetPath(".osrm.maneuver_overrides"));
+    files->emplace_back(REQUIRED, config.GetPath(".osrm.edges"));
+    files->emplace_back(REQUIRED, config.GetPath(".osrm.names"));
+    files->emplace_back(REQUIRED, config.GetPath(".osrm.ramIndex"));
+
+    for (const auto &file : *files)
+    {
+        if (file.first == REQUIRED && !boost::filesystem::exists(file.second))
+        {
+            throw util::exception("Could not find required filed: " + std::get<1>(file).string());
+        }
+    }
+}
+
+void Storage::GetUpdatableFiles(std::vector<std::pair<bool, boost::filesystem::path>> *files)
+{
+    constexpr bool REQUIRED = true;
+    constexpr bool OPTIONAL = false;
+
+    files->emplace_back(OPTIONAL, config.GetPath(".osrm.mldgr"));
+    files->emplace_back(OPTIONAL, config.GetPath(".osrm.cell_metrics"));
+    files->emplace_back(OPTIONAL, config.GetPath(".osrm.hsgr"));
+    files->emplace_back(REQUIRED, config.GetPath(".osrm.datasource_names"));
+    files->emplace_back(REQUIRED, config.GetPath(".osrm.geometry"));
+    files->emplace_back(REQUIRED, config.GetPath(".osrm.turn_weight_penalties"));
+    files->emplace_back(REQUIRED, config.GetPath(".osrm.turn_duration_penalties"));
+
+    for (const auto &file : *files)
+    {
+        if (file.first == REQUIRED && !boost::filesystem::exists(file.second))
+        {
+            throw util::exception("Could not find required filed: " + std::get<1>(file).string());
+        }
+    }
+}
+
+std::string Storage::PopulateLayoutWithRTree(std::unique_ptr<storage::BaseDataLayout> &layout)
+{
+    // Figure out the path to the rtree file (it's not a tar file)
+    auto absolute_file_index_path = boost::filesystem::absolute(config.GetPath(".osrm.fileIndex"));
+
+    // Convert the boost::filesystem::path object into a plain string
+    // that can then be stored as a member of an allocator object
+    std::string rtree_filename = absolute_file_index_path.string();
+
+    // Here, we hardcode the special file_index_path block name.
+    // The important bit here is that the "offset" is set to zero
+    layout->SetBlock("/common/rtree/file_index_path",
+                     make_block<char>(rtree_filename.length() + 1));
+
+    return rtree_filename;
+}
+
+void Storage::PopulateLayout(std::unique_ptr<storage::BaseDataLayout> &layout,
+                             std::vector<std::pair<bool, boost::filesystem::path>> *files)
+{
+    for (const auto &file : *files)
+    {
+        if (boost::filesystem::exists(file.second))
+        {
+            readBlocks(file.second, layout);
+        }
+    }
+}
+
 /**
  * This function examines all our data files and figures out how much
  * memory needs to be allocated, and the position of each data structure
@@ -293,90 +371,17 @@ int Storage::Run(int max_wait, const std::string &dataset_name, bool only_metric
  */
 void Storage::PopulateStaticLayout(std::unique_ptr<storage::BaseDataLayout> &static_layout)
 {
-    {
-        auto absolute_file_index_path =
-            boost::filesystem::absolute(config.GetPath(".osrm.fileIndex"));
-
-        static_layout->SetBlock("/common/rtree/file_index_path",
-                                make_block<char>(absolute_file_index_path.string().length() + 1));
-    }
-
-    constexpr bool REQUIRED = true;
-
-    std::vector<std::pair<bool, boost::filesystem::path>> tar_files;
-    Storage::GetStaticFiles(&tar_files);
-
-    for (const auto &file : tar_files)
-    {
-        if (boost::filesystem::exists(file.second))
-        {
-            readBlocks(file.second, static_layout);
-        }
-        else
-        {
-            if (file.first == REQUIRED)
-            {
-                throw util::exception("Could not find required filed: " +
-                                      std::get<1>(file).string());
-            }
-        }
-    }
-}
-
-void Storage::GetStaticFiles(std::vector<std::pair<bool, boost::filesystem::path>> *tar_files)
-{
-    constexpr bool REQUIRED = true;
-    constexpr bool OPTIONAL = false;
-
-    tar_files->emplace_back(OPTIONAL, config.GetPath(".osrm.cells"));
-    tar_files->emplace_back(OPTIONAL, config.GetPath(".osrm.partition"));
-    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.icd"));
-    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.properties"));
-    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.nbg_nodes"));
-    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.ebg_nodes"));
-    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.tls"));
-    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.tld"));
-    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.maneuver_overrides"));
-    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.edges"));
-    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.names"));
-    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.ramIndex"));
+    Storage::PopulateLayoutWithRTree(static_layout);
+    std::vector<std::pair<bool, boost::filesystem::path>> files;
+    Storage::GetStaticFiles(&files);
+    Storage::PopulateLayout(static_layout, &files);
 }
 
 void Storage::PopulateUpdatableLayout(std::unique_ptr<storage::BaseDataLayout> &updatable_layout)
 {
-    constexpr bool REQUIRED = true;
-    std::vector<std::pair<bool, boost::filesystem::path>> tar_files;
-    Storage::GetUpdatableFiles(&tar_files);
-
-    for (const auto &file : tar_files)
-    {
-        if (boost::filesystem::exists(file.second))
-        {
-            readBlocks(file.second, updatable_layout);
-        }
-        else
-        {
-            if (file.first == REQUIRED)
-            {
-                throw util::exception("Could not find required filed: " +
-                                      std::get<1>(file).string());
-            }
-        }
-    }
-}
-
-void Storage::GetUpdatableFiles(std::vector<std::pair<bool, boost::filesystem::path>> *tar_files)
-{
-    constexpr bool REQUIRED = true;
-    constexpr bool OPTIONAL = false;
-
-    tar_files->emplace_back(OPTIONAL, config.GetPath(".osrm.mldgr"));
-    tar_files->emplace_back(OPTIONAL, config.GetPath(".osrm.cell_metrics"));
-    tar_files->emplace_back(OPTIONAL, config.GetPath(".osrm.hsgr"));
-    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.datasource_names"));
-    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.geometry"));
-    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.turn_weight_penalties"));
-    tar_files->emplace_back(REQUIRED, config.GetPath(".osrm.turn_duration_penalties"));
+    std::vector<std::pair<bool, boost::filesystem::path>> files;
+    Storage::GetUpdatableFiles(&files);
+    Storage::PopulateLayout(updatable_layout, &files);
 }
 
 void Storage::PopulateStaticData(const SharedDataIndex &index)

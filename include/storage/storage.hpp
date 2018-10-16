@@ -51,8 +51,11 @@ class Storage
     void PopulateUpdatableLayout(std::unique_ptr<storage::BaseDataLayout> &layout);
     void PopulateStaticData(const SharedDataIndex &index);
     void PopulateUpdatableData(const SharedDataIndex &index);
-    void GetUpdatableFiles(std::vector<std::pair<bool, boost::filesystem::path>> *tar_files);
-    void GetStaticFiles(std::vector<std::pair<bool, boost::filesystem::path>> *tar_files);
+    void GetUpdatableFiles(std::vector<std::pair<bool, boost::filesystem::path>> *files);
+    void GetStaticFiles(std::vector<std::pair<bool, boost::filesystem::path>> *files);
+    void PopulateLayout(std::unique_ptr<storage::BaseDataLayout> &layout,
+                        std::vector<std::pair<bool, boost::filesystem::path>> *files);
+    std::string PopulateLayoutWithRTree(std::unique_ptr<storage::BaseDataLayout> &layout);
     void readBlocks(const boost::filesystem::path &path,
                     std::unique_ptr<storage::BaseDataLayout> &layout);
 
