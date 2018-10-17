@@ -42,9 +42,10 @@ MMapMemoryAllocator::MMapMemoryAllocator(const storage::StorageConfig &config)
         allocated_regions.push_back({&(rtree_filename[0]), std::move(fake_layout)});
     }
 
-    std::vector<std::pair<bool, boost::filesystem::path>> files;
-    storage.GetStaticFiles(&files);
-    storage.GetUpdatableFiles(&files);
+    std::vector<std::pair<bool, boost::filesystem::path>> files = storage.GetStaticFiles();
+    std::vector<std::pair<bool, boost::filesystem::path>> updatable_files =
+        storage.GetUpdatableFiles();
+    files.insert(files.end(), updatable_files.begin(), updatable_files.end());
 
     for (const auto &file : files)
     {
