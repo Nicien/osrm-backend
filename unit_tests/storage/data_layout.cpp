@@ -15,7 +15,7 @@ using namespace osrm::storage;
 
 BOOST_AUTO_TEST_CASE(layout_write_test)
 {
-    std::unique_ptr<DataLayout> layout = std::make_unique<DataLayout>();
+    std::unique_ptr<BaseDataLayout> layout = std::make_unique<DataLayout>();
 
     Block block_1{20, 8 * 20};
     Block block_2{1, 4 * 1};
@@ -45,7 +45,7 @@ BOOST_AUTO_TEST_CASE(layout_write_test)
         auto block_3_ptr =
             reinterpret_cast<std::uint64_t *>(layout->GetBlockPtr(buffer.data(), "block3"));
 
-        BOOST_CHECK_LT(reinterpret_cast<std::size_t>(smallest_addr),
+        BOOST_CHECK_LE(reinterpret_cast<std::size_t>(smallest_addr),
                        reinterpret_cast<std::size_t>(block_1_ptr));
         BOOST_CHECK_GT(
             reinterpret_cast<std::size_t>(biggest_addr),
@@ -68,7 +68,7 @@ BOOST_AUTO_TEST_CASE(layout_write_test)
 
 BOOST_AUTO_TEST_CASE(layout_list_test)
 {
-    std::unique_ptr<DataLayout> layout = std::make_unique<DataLayout>();
+    std::unique_ptr<BaseDataLayout> layout = std::make_unique<DataLayout>();
 
     Block block_1{20, 8 * 20};
     Block block_2{1, 4 * 1};
