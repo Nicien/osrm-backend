@@ -20,12 +20,12 @@ namespace osrm
 namespace storage
 {
 
-class DataLayout;
+class BaseDataLayout;
 namespace serialization
 {
-inline void read(io::BufferReader &reader, std::unique_ptr<DataLayout> &layout);
+inline void read(io::BufferReader &reader, std::unique_ptr<BaseDataLayout> &layout);
 
-inline void write(io::BufferWriter &writer, const std::unique_ptr<DataLayout> &layout);
+inline void write(io::BufferWriter &writer, const std::unique_ptr<BaseDataLayout> &layout);
 } // namespace serialization
 
 namespace detail
@@ -94,7 +94,6 @@ class BaseDataLayout
 
     virtual inline void *GetBlockPtr(char *shared_memory, const std::string &name) const = 0;
 
-  protected:
     std::map<std::string, Block> blocks;
 };
 
@@ -148,9 +147,10 @@ class DataLayout final : public BaseDataLayout
     }
 
   private:
-    friend void serialization::read(io::BufferReader &reader, std::unique_ptr<DataLayout> &layout);
+    friend void serialization::read(io::BufferReader &reader,
+                                    std::unique_ptr<BaseDataLayout> &layout);
     friend void serialization::write(io::BufferWriter &writer,
-                                     const std::unique_ptr<DataLayout> &layout);
+                                     const std::unique_ptr<BaseDataLayout> &layout);
 
     const Block &GetBlock(const std::string &name) const
     {
@@ -240,9 +240,10 @@ class TarDataLayout final : public BaseDataLayout
     }
 
   private:
-    friend void serialization::read(io::BufferReader &reader, std::unique_ptr<DataLayout> &layout);
+    friend void serialization::read(io::BufferReader &reader,
+                                    std::unique_ptr<BaseDataLayout> &layout);
     friend void serialization::write(io::BufferWriter &writer,
-                                     const std::unique_ptr<DataLayout> &layout);
+                                     const std::unique_ptr<BaseDataLayout> &layout);
 
     const Block &GetBlock(const std::string &name) const
     {

@@ -69,7 +69,7 @@ auto setupRegion(SharedRegionRegister &shared_register,
     }
 
     io::BufferWriter writer;
-    serialization::write(writer, *layout);
+    serialization::write(writer, layout);
     auto encoded_static_layout = writer.GetBuffer();
 
     // Allocate shared memory block
@@ -249,7 +249,7 @@ int Storage::Run(int max_wait, const std::string &dataset_name, bool only_metric
             std::make_unique<storage::DataLayout>();
         io::BufferReader reader(reinterpret_cast<char *>(static_memory->Ptr()),
                                 static_memory->Size());
-        serialization::read(reader, *static_layout);
+        serialization::read(reader, static_layout);
         auto layout_size = reader.GetPosition();
         auto *data_ptr = reinterpret_cast<char *>(static_memory->Ptr()) + layout_size;
 
