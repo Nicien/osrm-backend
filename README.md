@@ -1,3 +1,11 @@
+## Nicien modification To OSRM
+
+The following modifications has been made:
+
+### Match API
+
+- add `route_geometry_index` property to each leg. It's the index of a leg in route geometry
+
 ## Open Source Routing Machine
 
 | Linux / macOS | Windows | Code Coverage |

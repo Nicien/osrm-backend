@@ -210,7 +210,13 @@ class RouteAPI : public BaseAPI
                          parameters.overview == RouteParameters::OverviewType::Full);
 
             auto overview = guidance::assembleOverview(leg_geometries, use_simplification);
-            json_overview = MakeGeometry(overview.begin(), overview.end());
+            json_overview = MakeGeometry(overview.geometry.begin(), overview.geometry.end());
+
+            BOOST_ASSERT(overview.legs_indices.size() == legs.size());
+            for (size_t leg_index = 0; leg_index != overview.legs_indices.size(); ++leg_index) {
+
+                legs[leg_index].route_geometry_index = overview.legs_indices[leg_index];
+            }
         }
 
         std::vector<util::json::Value> step_geometries;
@@ -324,6 +330,7 @@ class RouteAPI : public BaseAPI
                     }
                     annotation.values["nodes"] = std::move(nodes);
                 }
+
                 // Add any supporting metadata, if needed
                 if (requested_annotations & RouteParameters::AnnotationsType::Datasources)
                 {

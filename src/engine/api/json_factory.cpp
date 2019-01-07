@@ -268,6 +268,9 @@ util::json::Object makeRouteLeg(guidance::RouteLeg leg, util::json::Array steps)
     route_leg.values["weight"] = leg.weight;
     route_leg.values["summary"] = std::move(leg.summary);
     route_leg.values["steps"] = std::move(steps);
+    if (leg.route_geometry_index) {
+        route_leg.values["route_geometry_index"] = *leg.route_geometry_index;
+    }
     return route_leg;
 }
 
@@ -305,6 +308,7 @@ util::json::Array makeRouteLegs(std::vector<guidance::RouteLeg> legs,
         {
             json_legs.values.push_back(makeRouteLeg(std::move(leg), std::move(json_steps)));
         }
+
     }
     return json_legs;
 }

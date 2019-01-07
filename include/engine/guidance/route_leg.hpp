@@ -22,6 +22,7 @@ struct RouteLeg
     double weight;
     std::string summary;
     std::vector<RouteStep> steps;
+    boost::optional<size_t> route_geometry_index;
 };
 }
 }

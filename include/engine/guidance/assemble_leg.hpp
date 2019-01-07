@@ -215,7 +215,9 @@ inline RouteLeg assembleLeg(const datafacade::BaseDataFacade &facade,
                     duration / 10.,
                     weight / facade.GetWeightMultiplier(),
                     summary,
-                    {}};
+                    {},
+                    boost::none
+    };
 }
 
 } // namespace guidance

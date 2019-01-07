@@ -14,7 +14,12 @@ namespace engine
 namespace guidance
 {
 
-std::vector<util::Coordinate> assembleOverview(const std::vector<LegGeometry> &leg_geometries,
+struct Overview {
+    std::vector<util::Coordinate> geometry;
+    std::vector<size_t> legs_indices;
+};
+
+Overview assembleOverview(const std::vector<LegGeometry> &leg_geometries,
                                                const bool use_simplification);
 
 } // namespace guidance

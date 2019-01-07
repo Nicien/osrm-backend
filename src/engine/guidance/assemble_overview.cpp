@@ -1,5 +1,6 @@
 #include "engine/douglas_peucker.hpp"
 #include "engine/guidance/leg_geometry.hpp"
+#include "engine/guidance/assemble_overview.hpp"
 #include "util/viewport.hpp"
 
 #include <iterator>
@@ -41,7 +42,7 @@ unsigned calculateOverviewZoomLevel(const std::vector<LegGeometry> &leg_geometri
 }
 }
 
-std::vector<util::Coordinate> assembleOverview(const std::vector<LegGeometry> &leg_geometries,
+Overview assembleOverview(const std::vector<LegGeometry> &leg_geometries,
                                                const bool use_simplification)
 {
     auto overview_size =
@@ -52,13 +53,14 @@ std::vector<util::Coordinate> assembleOverview(const std::vector<LegGeometry> &l
                             return sum + leg_geometry.locations.size();
                         }) -
         leg_geometries.size() + 1;
-    std::vector<util::Coordinate> overview_geometry;
-    overview_geometry.reserve(overview_size);
 
-    using GeometryIter = decltype(overview_geometry)::const_iterator;
+    Overview overview;
+    overview.geometry.reserve(overview_size);
+
+    using GeometryIter = decltype(overview.geometry)::const_iterator;
 
     auto leg_reverse_index = leg_geometries.size();
-    const auto insert_without_overlap = [&leg_reverse_index, &overview_geometry](GeometryIter begin,
+    const auto insert_without_overlap = [&leg_reverse_index, &overview](GeometryIter begin,
                                                                                  GeometryIter end) {
         // not the last leg
         if (leg_reverse_index > 1)
@@ -66,7 +68,10 @@ std::vector<util::Coordinate> assembleOverview(const std::vector<LegGeometry> &l
             --leg_reverse_index;
             end = std::prev(end);
         }
-        overview_geometry.insert(overview_geometry.end(), begin, end);
+
+        BOOST_ASSERT(end - begin > 0);
+        overview.legs_indices.push_back(overview.geometry.size());
+        overview.geometry.insert(overview.geometry.end(), begin, end);
     };
 
     if (use_simplification)
@@ -87,7 +92,7 @@ std::vector<util::Coordinate> assembleOverview(const std::vector<LegGeometry> &l
         }
     }
 
-    return overview_geometry;
+    return overview;
 }
 
 } // namespace guidance
